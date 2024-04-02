@@ -21,8 +21,8 @@ from skimage import io
 IMAGE_CHANNELS=1
 NUM_CLASSES=2
 BATCH_SIZE=4
-IMAGE_HEIGHT=128
-IMAGE_WIDTH=128
+IMAGE_HEIGHT=256
+IMAGE_WIDTH=256
 LEARNING_RATE = 0.001      # Initial learning rate.
 
 
@@ -228,31 +228,50 @@ def inference(images, labels,  phase_train):
     pool4, pool4_indices = tf.nn.max_pool_with_argmax(conv4, ksize=[1, 2, 2, 1],
                            strides=[1, 2, 2, 1], padding='SAME', name='pool4')
 
+    # conv5
+    conv5 = conv_layer_with_bn(pool4, [7, 7, 64, 64], phase_train, name="conv5")
+
+    # pool5
+    pool5, pool5_indices = tf.nn.max_pool_with_argmax(conv5, ksize=[1, 2, 2, 1],
+                           strides=[1, 2, 2, 1], padding='SAME', name='pool5')
+    #conv6
+    conv6 = conv_layer_with_bn(pool5, [7, 7, 64, 64], phase_train, name="conv5")
+
+    # pool6
+    pool6, pool6_indices = tf.nn.max_pool_with_argmax(conv6, ksize=[1, 2, 2, 1],
+                           strides=[1, 2, 2, 1], padding='SAME', name='pool6')
+    
     """ End of encoder """
     """ start upsample """
-    # upsample4
+    # upsample6
     # Need to change when using different dataset out_w, out_h
-    #upsample4 = upsample_with_pool_indices(pool4, pool4_indices, pool4.get_shape(), out_w=45, out_h=60, scale=2, name='upsample4')
-    upsample4 = deconv_layer(pool4, [2, 2, 64, 64], [BATCH_SIZE, 16, 16, 64], 2, "up4")
+    upsample6 = deconv_layer(pool6, [2, 2, 64, 64], [BATCH_SIZE, 8, 8, 64], 2, "up6")
+    # decode 6
+    conv_decode6 = conv_layer_with_bn(upsample6, [7, 7, 64, 64], phase_train, False, name="conv_decode6")
+    
+    # upsample5
+    upsample5 = deconv_layer(conv_decode6, [2, 2, 64, 64], [BATCH_SIZE, 16, 16, 64], 2, "up5")
+    # decode 5
+    conv_decode5 = conv_layer_with_bn(upsample5, [7, 7, 64, 64], phase_train, False, name="conv_decode5")
+
+    # upsample 4
+    upsample4= deconv_layer( conv_decode5 , [2, 2, 64, 64], [BATCH_SIZE, 32, 32, 64], 2, "up4")
     # decode 4
     conv_decode4 = conv_layer_with_bn(upsample4, [7, 7, 64, 64], phase_train, False, name="conv_decode4")
 
-    # upsample 3
-    #upsample3 = upsample_with_pool_indices(conv_decode4, pool3_indices, conv_decode4.get_shape(), scale=2, name='upsample3')
-    upsample3= deconv_layer( conv_decode4 , [2, 2, 64, 64], [BATCH_SIZE, 32, 32, 64], 2, "up3")
+    # upsample3
+    upsample3= deconv_layer(conv_decode4, [2, 2, 64, 64], [BATCH_SIZE, 64, 64, 64], 2, "up3")
     # decode 3
     conv_decode3 = conv_layer_with_bn(upsample3, [7, 7, 64, 64], phase_train, False, name="conv_decode3")
 
     # upsample2
-    #upsample2 = upsample_with_pool_indices(conv_decode3, pool2_indices, conv_decode3.get_shape(), scale=2, name='upsample2')
-    upsample2= deconv_layer(conv_decode3, [2, 2, 64, 64], [BATCH_SIZE, 64, 64, 64], 2, "up2")
-    # decode 2
+    upsample2= deconv_layer(conv_decode3, [2, 2, 64, 64], [BATCH_SIZE, 128, 128, 64], 2, "up2")
+    # decode4
     conv_decode2 = conv_layer_with_bn(upsample2, [7, 7, 64, 64], phase_train, False, name="conv_decode2")
 
     # upsample1
-    # upsample1 = upsample_with_pool_indices(conv_decode2, pool1_indices, conv_decode2.get_shape(), scale=2, name='upsample1')
-    upsample1= deconv_layer(conv_decode2, [2, 2, 64, 64], [BATCH_SIZE, 128, 128, 64], 2, "up1")
-    # decode4
+    upsample1= deconv_layer(conv_decode2, [2, 2, 64, 64], [BATCH_SIZE, 256, 256, 64], 2, "up1")
+    # decode1
     conv_decode1 = conv_layer_with_bn(upsample1, [7, 7, 64, 64], phase_train, False, name="conv_decode1")
     print((tf.sigmoid(conv_decode1)).shape)
     
@@ -269,7 +288,6 @@ def inference(images, labels,  phase_train):
       conv_classifier = tf.nn.bias_add(conv, biases, name=scope.name)
 
     logit = conv_classifier
-    #loss = cal_loss(conv_classifier, labels)
 
     return  logit
 
